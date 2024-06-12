@@ -10,4 +10,7 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [dependencies]
+# defuse-account-contract.workspace = true
+
 near-sdk.workspace = true
+near-plugins.workspace = true
