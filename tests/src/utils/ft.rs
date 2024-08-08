@@ -1,11 +1,8 @@
-use lazy_static::lazy_static;
 use near_contract_standards::storage_management::StorageBalance;
 use near_sdk::json_types::U128;
 use near_workspaces::types::NearToken;
 use near_workspaces::{Account, AccountId, Contract};
 use serde_json::json;
-
-use crate::utils::read_wasm;
 
 use super::account::AccountExt;
 use super::storage_management::StorageManagementExt;
@@ -13,13 +10,19 @@ use super::storage_management::StorageManagementExt;
 const STORAGE_DEPOSIT: NearToken = NearToken::from_yoctonear(2_350_000_000_000_000_000_000);
 const TOTAL_SUPPLY: u128 = 1_000_000_000;
 
-lazy_static! {
-    static ref FUNGIBLE_TOKEN_WASM: Vec<u8> = read_wasm("fungible-token");
-}
+const FUNGIBLE_TOKEN_WASM: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/contracts/fungible-token.wasm"
+));
 
 pub trait FtExt: StorageManagementExt {
     async fn deploy_ft_token(&self, token: &str) -> anyhow::Result<Contract>;
-    async fn ft_balance_of(&self, token_id: &AccountId) -> anyhow::Result<u128>;
+    async fn ft_token_balance_of(
+        &self,
+        token_id: &AccountId,
+        account_id: &AccountId,
+    ) -> anyhow::Result<u128>;
+    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<u128>;
     async fn ft_transfer(
         &self,
         token_id: &AccountId,
@@ -53,17 +56,21 @@ pub trait FtExt: StorageManagementExt {
         }
         Ok(())
     }
-
-    async fn ft_mint(&self, account_id: &AccountId, amount: u128) -> anyhow::Result<()>;
+    async fn ft_mint(
+        &self,
+        token: &AccountId,
+        account_id: &AccountId,
+        amount: u128,
+    ) -> anyhow::Result<()>;
 }
 
 impl FtExt for Account {
     async fn deploy_ft_token(&self, token: &str) -> anyhow::Result<Contract> {
-        let contract = self.deploy_contract(token, &FUNGIBLE_TOKEN_WASM).await?;
+        let contract = self.deploy_contract(token, FUNGIBLE_TOKEN_WASM).await?;
         contract
             .call("new")
             .args_json(json!({
-                "owner_id": contract.id(),
+                "owner_id": self.id(),
                     "total_supply": TOTAL_SUPPLY.to_string(),
                     "metadata": {
                         "spec": "ft-1.0.0",
@@ -80,8 +87,12 @@ impl FtExt for Account {
         Ok(contract)
     }
 
-    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<u128> {
-        self.view(self.id(), "ft_balance_of")
+    async fn ft_token_balance_of(
+        &self,
+        token_id: &AccountId,
+        account_id: &AccountId,
+    ) -> anyhow::Result<u128> {
+        self.view(token_id, "ft_balance_of")
             .args_json(json!({
                 "account_id": account_id,
             }))
@@ -89,6 +100,10 @@ impl FtExt for Account {
             .json::<U128>()
             .map(|v| v.0)
             .map_err(Into::into)
+    }
+
+    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<u128> {
+        self.ft_token_balance_of(self.id(), account_id).await
     }
 
     async fn ft_transfer(
@@ -137,8 +152,13 @@ impl FtExt for Account {
             .map_err(Into::into)
     }
 
-    async fn ft_mint(&self, account_id: &AccountId, amount: u128) -> anyhow::Result<()> {
-        self.ft_transfer(self.id(), account_id, amount, None).await
+    async fn ft_mint(
+        &self,
+        token: &AccountId,
+        account_id: &AccountId,
+        amount: u128,
+    ) -> anyhow::Result<()> {
+        self.ft_transfer(token, account_id, amount, None).await
     }
 }
 
@@ -147,8 +167,18 @@ impl FtExt for Contract {
         self.as_account().deploy_ft_token(token).await
     }
 
-    async fn ft_balance_of(&self, token_id: &AccountId) -> anyhow::Result<u128> {
-        self.as_account().ft_balance_of(token_id).await
+    async fn ft_token_balance_of(
+        &self,
+        token_id: &AccountId,
+        account_id: &AccountId,
+    ) -> anyhow::Result<u128> {
+        self.as_account()
+            .ft_token_balance_of(token_id, account_id)
+            .await
+    }
+
+    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<u128> {
+        self.as_account().ft_balance_of(account_id).await
     }
 
     async fn ft_transfer(
@@ -176,7 +206,12 @@ impl FtExt for Contract {
             .await
     }
 
-    async fn ft_mint(&self, account_id: &AccountId, amount: u128) -> anyhow::Result<()> {
-        self.as_account().ft_mint(account_id, amount).await
+    async fn ft_mint(
+        &self,
+        token: &AccountId,
+        account_id: &AccountId,
+        amount: u128,
+    ) -> anyhow::Result<()> {
+        self.as_account().ft_mint(token, account_id, amount).await
     }
 }

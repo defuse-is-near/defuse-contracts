@@ -6,7 +6,7 @@ use serde_json::json;
 use crate::utils::{account::AccountExt, nft::NftExt, read_wasm, Sandbox};
 
 lazy_static! {
-    static ref ACCOUNT_WASM: Vec<u8> = read_wasm("defuse-account-contract");
+    static ref ACCOUNT_WASM: Vec<u8> = read_wasm("defuse_account_contract");
 }
 
 pub trait AccountShardExt {
@@ -96,7 +96,7 @@ async fn test_account_shard() {
     assert_eq!(
         &account_shard
             .as_account()
-            .nft_token(&"a".to_string())
+            .self_nft_token(&"a".to_string())
             .await
             .unwrap()
             .unwrap()
@@ -111,7 +111,7 @@ async fn test_account_shard() {
     assert_eq!(
         &account_shard
             .as_account()
-            .nft_token(&"a".to_string())
+            .self_nft_token(&"a".to_string())
             .await
             .unwrap()
             .unwrap()

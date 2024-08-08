@@ -1,4 +1,3 @@
-pub use self::{log::*, mutex::*};
+pub use self::mutex::*;
 
-mod log;
 mod mutex;
